@@ -22,14 +22,14 @@ int main() {
 
     ret = udp_daemon_init(&sockfd);
     if (ret) {
-        syslog(LOG_ERR, "Daemon initialization failed. Exiting.");
+        syslog(LOG_ERR, "Daemon initialization failed. Exiting");
         closelog();
         return SE_DE_EXIT_INIT;
     }
 
     ret = udp_daemon_run(&sockfd);
     if (ret) {
-        syslog(LOG_ERR, "Daemon runtime error. Exiting.");
+        syslog(LOG_ERR, "Daemon runtime error. Exiting");
         closelog();
         return SE_DE_EXIT_RUNT;
     }
@@ -57,19 +57,20 @@ int udp_daemon_init(int *sockfd) {
 
     /* Opening a socket for UDP protocol (SOCK_DGRAM). */
     *sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (*sockfd) {
-        syslog(LOG_ERR, "Cannot open a socket.");
+    if (*sockfd < 0) {
+        syslog(LOG_ERR, "Socket error: %s", strerror(errno));
         return SERVX_ECHO_SOCKET;
     }
 
     /* Binding the socket to a predefined port. */
     ret = bind(*sockfd, (struct sockaddr *) &addr, sizeof(struct sockaddr_in));
     if (ret) {
-        syslog(LOG_ERR, "Cannot bind.");
+        syslog(LOG_ERR, "Bind error: %s", strerror(errno));
+        (void) close(*sockfd);
         return SERVX_ECHO_BIND;
     }
 
-    syslog(LOG_INFO, "Initialization complete.");
+    syslog(LOG_INFO, "Initialization complete");
 
     return SERVX_ECHO_SUCC;
 }
@@ -88,7 +89,8 @@ int udp_daemon_run(int *sockfd) {
     do {
         msg_lenght = recvfrom(*sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *) &addr, &addr_lenght);
         if (errno) {
-            syslog(LOG_ERR, "recvfrom returned errno %d, check out documentation.", errno);
+            syslog(LOG_ERR, "Receive from error: %s", strerror(errno));
+            (void) close(*sockfd);
             return SERVX_ECHO_RECV;
         }
 
@@ -99,12 +101,14 @@ int udp_daemon_run(int *sockfd) {
 
         (void) sendto(*sockfd, buffer, msg_lenght, 0, (struct sockaddr *) &addr, addr_lenght);
         if (errno) {
-            syslog(LOG_ERR, "sendto returned errno %d, check out documentation.", errno);
+            syslog(LOG_ERR, "Send to error: %s", strerror(errno));
+            (void) close(*sockfd);
             return SERVX_ECHO_SEND;
         }
     } while (1);
 
     /* Magic code was received. */
+    (void) close(*sockfd);
     syslog(LOG_NOTICE, "Time for a coffee break...");
 
     return SERVX_ECHO_SUCC;
